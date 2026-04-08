@@ -25,7 +25,8 @@ import {
   IconMail,
 } from '@tabler/icons-react';
 import { loginSchema, type LoginFormData } from '@/lib/schemas';
-import { authApi, ApiError } from '@/lib/api';
+import { authApi } from '@/lib/api';
+import { getErrorMessage } from '@/lib/errors';
 import { useAuthStore } from '@/stores/authStore';
 import {Logo} from "@/components/Logo";
 
@@ -61,11 +62,7 @@ export function LoginForm() {
       setAuth(authResponse, values.rememberMe);
       router.push('/products');
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message || 'Неверные учётные данные');
-      } else {
-        setError('Произошла непредвиденная ошибка');
-      }
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

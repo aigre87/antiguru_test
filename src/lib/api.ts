@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ApiError } from './errors';
 import {
   authResponseSchema,
   productsListResponseSchema,
@@ -9,28 +10,62 @@ import {
 
 const BASE_URL = 'https://dummyjson.com';
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status?: number
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
+// ─── Response handler with safeParse + typed errors ──────────────────────────
 
 async function handleResponse<T>(response: Response, schema: z.ZodSchema<T>): Promise<T> {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-    throw new ApiError(errorData.message || `HTTP error ${response.status}`, response.status);
+    throw new ApiError({
+      kind: 'http',
+      status: response.status,
+      message: errorData.message || `HTTP error ${response.status}`,
+    });
   }
-  const data = await response.json();
-  return schema.parse(data);
+
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    throw new ApiError({
+      kind: 'unknown',
+      message: 'Failed to parse response JSON',
+    });
+  }
+
+  const result = schema.safeParse(data);
+
+  if (!result.success) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[API] Validation failed:', result.error.issues);
+    }
+    throw new ApiError({
+      kind: 'validation',
+      message: 'Invalid API response',
+      issues: result.error.issues,
+    });
+  }
+
+  return result.data;
 }
+
+// ─── Fetch wrapper with network error handling ───────────────────────────────
+
+async function safeFetch(url: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    throw new ApiError({
+      kind: 'network',
+      message: error instanceof Error ? error.message : 'Network request failed',
+    });
+  }
+}
+
+// ─── Auth API ────────────────────────────────────────────────────────────────
 
 export const authApi = {
   async login(data: LoginFormData): Promise<AuthResponse> {
-    const response = await fetch(`${BASE_URL}/auth/login`, {
+    const response = await safeFetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -38,6 +73,8 @@ export const authApi = {
     return handleResponse(response, authResponseSchema);
   },
 };
+
+// ─── Products API ────────────────────────────────────────────────────────────
 
 export interface GetProductsParams {
   skip?: number;
@@ -62,7 +99,7 @@ export const productsApi = {
       url += `&sortBy=${sortBy}&order=${order || 'asc'}`;
     }
 
-    const response = await fetch(url);
+    const response = await safeFetch(url);
     return handleResponse(response, productsListResponseSchema);
   },
 };

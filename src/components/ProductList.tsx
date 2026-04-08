@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { DataTable, type DataTableSortStatus } from 'mantine-datatable';
 import {
+  Alert,
   Button,
   Group,
   Text,
@@ -20,8 +21,10 @@ import {
   IconSearch,
   IconRefresh,
   IconDotsCircleHorizontal,
+  IconAlertCircle,
 } from '@tabler/icons-react';
 import { productsApi } from '@/lib/api';
+import { getErrorMessage } from '@/lib/errors';
 import { useProductsStore } from '@/stores/productsStore';
 import { AddProductModal } from './AddProductModal';
 
@@ -75,7 +78,7 @@ export function ProductList() {
 
   const skip = (page - 1) * PAGE_SIZE;
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['products', skip, PAGE_SIZE, search, sortBy, sortOrder],
     queryFn: () =>
       productsApi.getProducts({
@@ -151,6 +154,30 @@ export function ProductList() {
           </Button>
         </Group>
       </Group>
+
+      {/* Error alert */}
+      {error && (
+        <Alert
+          icon={<IconAlertCircle size={16} />}
+          title="Ошибка загрузки"
+          color="red"
+          mb="md"
+          withCloseButton={false}
+        >
+          <Group justify="space-between" align="center">
+            <Text size="sm">{getErrorMessage(error)}</Text>
+            <Button
+              variant="light"
+              color="red"
+              size="xs"
+              leftSection={<IconRefresh size={14} />}
+              onClick={() => refetch()}
+            >
+              Повторить
+            </Button>
+          </Group>
+        </Alert>
+      )}
 
       {/* Data Table */}
       <DataTable
