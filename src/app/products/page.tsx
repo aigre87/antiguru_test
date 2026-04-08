@@ -1,28 +1,32 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Container, Group, Button, Text, Box } from '@mantine/core';
-import { IconLogout } from '@tabler/icons-react';
+import { Container, Box, Center, Loader } from '@mantine/core';
 import { useRouter } from 'next/navigation';
 import { ProductList } from '@/components/ProductList';
-import { useAuthStore, useIsAuthenticated, useCurrentUser } from '@/stores/authStore';
+import { useAuthStore, useIsAuthenticated } from '@/stores/authStore';
 
 export default function ProductsPage() {
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout);
+  const hydrated = useAuthStore((s) => s._hydrated);
   const isAuthenticated = useIsAuthenticated();
-  const user = useCurrentUser();
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    // Only redirect after hydration is complete
+    if (hydrated && !isAuthenticated) {
       router.replace('/');
     }
-  }, [isAuthenticated, router]);
+  }, [hydrated, isAuthenticated, router]);
 
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
+  // Show loader while Zustand rehydrates from localStorage
+  if (!hydrated) {
+    return (
+      <Center style={{ minHeight: '100vh' }}>
+        <Loader size="lg" />
+      </Center>
+    );
+  }
 
   if (!isAuthenticated) {
     return null;
